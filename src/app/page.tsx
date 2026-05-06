@@ -1,0 +1,189 @@
+"use client"
+
+import { useBarangStore } from "@/data/store"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import {
+  Package,
+  AlertTriangle,
+  XCircle,
+  Layers,
+  ArrowUpRight,
+  ArrowDownRight,
+  Plus,
+  TrendingUp,
+} from "lucide-react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+
+function formatRupiah(angka: number): string {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(angka)
+}
+
+function relativeTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  if (days === 0) return "Hari ini"
+  if (days === 1) return "Kemarin"
+  if (days < 7) return `${days} hari lalu`
+  if (days < 30) return `${Math.floor(days / 7)} minggu lalu`
+  return `${Math.floor(days / 30)} bulan lalu`
+}
+
+const ringkasanCards = [
+  { key: "total", label: "Total Barang", icon: Package, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950" },
+  { key: "menipis", label: "Stok Menipis", icon: AlertTriangle, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950" },
+  { key: "habis", label: "Stok Habis", icon: XCircle, color: "text-red-600", bg: "bg-red-50 dark:bg-red-950" },
+  { key: "kategori", label: "Kategori", icon: Layers, color: "text-purple-600", bg: "bg-purple-50 dark:bg-purple-950" },
+]
+
+const aksiIcons: Record<string, typeof ArrowUpRight> = {
+  "Barang Masuk": ArrowDownRight,
+  "Barang Baru": Plus,
+  "Barang Keluar": ArrowUpRight,
+  "Penyesuaian": TrendingUp,
+}
+
+const aksiColors: Record<string, string> = {
+  "Barang Masuk": "text-emerald-600",
+  "Barang Baru": "text-blue-600",
+  "Barang Keluar": "text-amber-600",
+  "Penyesuaian": "text-purple-600",
+}
+
+export default function DashboardPage() {
+  const store = useBarangStore()
+  const total = store.getBarangCount()
+  const menipis = store.getMenipisCount()
+  const habis = store.getHabisCount()
+  const kategori = store.getKategoriCount()
+  const totalNilai = store.getTotalNilai()
+
+  const values: Record<string, number> = { total, menipis, habis, kategori }
+
+  const aktivitasTerbaru = store.aktivitas.slice(0, 5)
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground text-sm">
+            Ringkasan inventaris barang
+          </p>
+        </div>
+        <Link href="/barang?tambah=true">
+          <Button size="sm">
+            <Plus className="h-4 w-4" />
+            Tambah Barang
+          </Button>
+        </Link>
+      </div>
+
+      {/* Ringkasan Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {ringkasanCards.map((card) => (
+          <Card key={card.key}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium">{card.label}</CardTitle>
+              <div className={`p-2 rounded-lg ${card.bg}`}>
+                <card.icon className={`h-4 w-4 ${card.color}`} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{values[card.key]}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Stok per Kategori */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-base">Stok per Kategori</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {["Elektronik", "ATK", "Furnitur"].map((kat) => {
+                const items = store.barang.filter((b) => b.kategori === kat)
+                const totalStok = items.reduce((s, b) => s + b.stok, 0)
+                const maxStok = Math.max(...store.barang.map(b => b.stok), 1)
+                const width = Math.round((totalStok / (maxStok * 3)) * 100)
+                return (
+                  <div key={kat} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">{kat}</span>
+                      <span className="text-muted-foreground">
+                        {items.length} jenis · {totalStok} unit
+                      </span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-muted">
+                      <div
+                        className="h-2 rounded-full bg-primary transition-all"
+                        style={{ width: `${Math.min(width, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Nilai Inventaris */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Nilai Inventaris</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-2 mb-4">
+              <span className="text-3xl font-bold">{formatRupiah(totalNilai)}</span>
+              <span className="text-sm text-muted-foreground">total nilai stok</span>
+            </div>
+            <Separator className="my-4" />
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium">Aktivitas Terakhir</h4>
+              {aktivitasTerbaru.map((aktivitas) => {
+                const Icon = aksiIcons[aktivitas.aksi] ?? TrendingUp
+                return (
+                  <div key={aktivitas.id} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-1.5 rounded-md bg-muted ${aksiColors[aktivitas.aksi]}`}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{aktivitas.barangNama}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {aktivitas.aksi} · {aktivitas.jumlah} {aktivitas.aksi.includes("Keluar") ? "keluar" : "masuk"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant="outline" className="text-xs">
+                        {relativeTime(aktivitas.tanggal)}
+                      </Badge>
+                    </div>
+                  </div>
+                )
+              })}
+              {aktivitasTerbaru.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Belum ada aktivitas
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
